@@ -128,7 +128,7 @@ fn fetch_zmk_data_from_client<T: Read + Write>(
     if let Ok(behavior_ids) = client.list_all_behaviors() {
         for behavior_id in behavior_ids {
             if let Ok(details) = client.get_behavior_details(behavior_id) {
-                behavior_names.insert(behavior_id, details.name);
+                behavior_names.insert(behavior_id as i32, details.display_name);
             }
         }
     }
