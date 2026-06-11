@@ -2,4 +2,7 @@ mod behavior;
 mod hid_usage;
 mod keycode_label;
 
-pub use behavior::behavior_to_layout_key;
+pub use behavior::{
+    behavior_to_layout_key,
+    behavior_to_layout_key_with_metadata,
+};

@@ -1,8 +1,9 @@
 use crate::layout_key::LayoutKey;
-use crate::zmk_keycode_labels::behavior_to_layout_key;
+use crate::zmk_keycode_labels::behavior_to_layout_key_with_metadata;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::time::Duration;
+use std::collections::HashMap;
 use zmk_studio_api::proto::zmk::{core, keymap};
 use zmk_studio_api::transport::{BleDiscoveryMode, PlatformBleTransport};
 use zmk_studio_api::{Behavior, StudioClient};
@@ -122,6 +123,16 @@ fn open_zmk_ble_and_fetch(device_id: &str) -> Result<ZmkData, Box<dyn Error>> {
 fn fetch_zmk_data_from_client<T: Read + Write>(
     mut client: StudioClient<T>,
 ) -> Result<ZmkData, Box<dyn Error>> {
+    let mut behavior_names = HashMap::new();
+
+    if let Ok(behavior_ids) = client.list_all_behaviors() {
+        for behavior_id in behavior_ids {
+            if let Ok(details) = client.get_behavior_details(behavior_id) {
+                behavior_names.insert(behavior_id, details.name);
+            }
+        }
+    }
+
     let lock_state = client.get_lock_state()?;
     if lock_state == core::LockState::ZmkStudioCoreLockStateLocked {
         drop(client);
@@ -133,9 +144,18 @@ fn fetch_zmk_data_from_client<T: Read + Write>(
     let resolved_layers: Vec<Vec<Behavior>> = client.resolve_keymap()?;
     let layer_count = resolved_layers.len();
 
+    // let layout_keys: Vec<Vec<Option<LayoutKey>>> = resolved_layers
+    //     .iter()
+    //     .map(|layer| layer.iter().map(behavior_to_layout_key).collect())
+    //     .collect();
     let layout_keys: Vec<Vec<Option<LayoutKey>>> = resolved_layers
         .iter()
-        .map(|layer| layer.iter().map(behavior_to_layout_key).collect())
+        .map(|layer| {
+            layer
+                .iter()
+                .map(|behavior| behavior_to_layout_key_with_metadata(behavior, &behavior_names))
+                .collect()
+        })
         .collect();
 
     // Drop the ZMK RPC connection and give transport time to settle before

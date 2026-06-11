@@ -1,5 +1,6 @@
 use crate::layout_key::{KeycodeKind, Label, LayoutKey};
-use zmk_studio_api::Behavior;
+use std::collections::HashMap;
+use zmk_studio_api::{Behavior, HidUsage};
 
 use super::hid_usage::hid_usage_to_layout_key;
 
@@ -163,6 +164,58 @@ pub fn behavior_to_layout_key(behavior: &Behavior) -> Option<LayoutKey> {
             })
         }
     }
+}
+
+pub fn behavior_to_layout_key_with_metadata(
+    behavior: &Behavior,
+    behavior_names: &HashMap<u32, String>,
+) -> Option<LayoutKey> {
+    match behavior {
+        Behavior::Unknown {
+            behavior_id,
+            param1,
+            param2,
+        } => unknown_behavior_to_layout_key(*behavior_id, *param1, *param2, behavior_names),
+        _ => behavior_to_layout_key(behavior),
+    }
+}
+
+fn unknown_behavior_to_layout_key(
+    behavior_id: u32,
+    param1: u32,
+    param2: u32,
+    behavior_names: &HashMap<u32, String>,
+) -> Option<LayoutKey> {
+    let name = behavior_names.get(&behavior_id);
+
+    let selected_param = if name
+        .map(|n| n.starts_with("td_") || n.contains("tap_dance") || n.contains("tap-dance"))
+        .unwrap_or(false)
+    {
+        param1
+    } else {
+        param2
+    };
+
+    if selected_param != 0 {
+        let mut key = hid_usage_to_layout_key(HidUsage::from(selected_param));
+        key.kind = KeycodeKind::Special;
+        return Some(key);
+    }
+
+    if let Some(name) = name {
+        return Some(LayoutKey {
+            tap: Label::new(name.clone()),
+            kind: KeycodeKind::Special,
+            ..Default::default()
+        });
+    }
+
+    behavior_to_layout_key(&Behavior::Unknown {
+        behavior_id,
+        param1,
+        param2,
+    })
 }
 
 fn layer_layout_key(abbreviation: &str, layer_id: u32) -> LayoutKey {
