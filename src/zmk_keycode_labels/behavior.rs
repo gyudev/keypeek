@@ -188,7 +188,12 @@ fn unknown_behavior_to_layout_key(
 ) -> Option<LayoutKey> {
     let name = behavior_names.get(&behavior_id);
     let is_tap_dance = name
-        .map(|n| n.to_lowercase().starts_with("td_") || n.contains("tap_dance") || n.contains("tap-dance"))
+        .map(|n| {
+            let n = n.to_lowercase();
+            n.starts_with("td")
+                || n.contains("tap_dance")
+                || n.contains("tap-dance")
+        })
         .unwrap_or(false);
 
     let selected_param = if is_tap_dance {
