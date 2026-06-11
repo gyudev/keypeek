@@ -1,10 +1,9 @@
 use crate::layout_key::{KeycodeKind, Label, LayoutKey};
 use std::collections::HashMap;
-use zmk_studio_api::{
-    Behavior,
-    HidUsage,
+use zmk_studio_api::{Behavior, HidUsage};
+use zmk_studio_api::proto::zmk::behaviors::{
     BehaviorBindingParametersSet,
-    BehaviorParameterValueType,
+    behavior_parameter_value_description::ValueType,
 };
 
 use super::hid_usage::hid_usage_to_layout_key;
@@ -294,10 +293,7 @@ fn param_is_layer(
         };
 
         params.iter().any(|p| {
-            matches!(
-                p.value_type,
-                Some(BehaviorParameterValueType::LayerId(_))
-            )
+            matches!(p.value_type, Some(ValueType::LayerId(_)))
         })
     })
 }
@@ -314,10 +310,7 @@ fn param_is_hid(
         };
 
         params.iter().any(|p| {
-            matches!(
-                p.value_type,
-                Some(BehaviorParameterValueType::HidUsage(_))
-            )
+            matches!(p.value_type, Some(ValueType::HidUsage(_)))
         })
     })
 }
