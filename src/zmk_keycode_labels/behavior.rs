@@ -198,7 +198,7 @@ fn unknown_behavior_to_layout_key(
     };
 
     if selected_param != 0 {
-        let mut key = hid_usage_to_layout_key(HidUsage::from_hid_usage(selected_param));;
+        let mut key = hid_usage_to_layout_key(HidUsage::from_encoded(selected_param));
         key.kind = KeycodeKind::Special;
         return Some(key);
     }
