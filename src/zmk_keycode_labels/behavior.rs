@@ -1,6 +1,11 @@
 use crate::layout_key::{KeycodeKind, Label, LayoutKey};
 use std::collections::HashMap;
-use zmk_studio_api::{Behavior, HidUsage};
+use zmk_studio_api::{
+    Behavior,
+    HidUsage,
+    BehaviorBindingParametersSet,
+    BehaviorParameterValueType,
+};
 
 use super::hid_usage::hid_usage_to_layout_key;
 
@@ -169,13 +174,20 @@ pub fn behavior_to_layout_key(behavior: &Behavior) -> Option<LayoutKey> {
 pub fn behavior_to_layout_key_with_metadata(
     behavior: &Behavior,
     behavior_names: &HashMap<i32, String>,
+    behavior_metadata: &HashMap<i32, Vec<BehaviorBindingParametersSet>>,
 ) -> Option<LayoutKey> {
     match behavior {
         Behavior::Unknown {
             behavior_id,
             param1,
             param2,
-        } => unknown_behavior_to_layout_key(*behavior_id, *param1, *param2, behavior_names),
+        } => unknown_behavior_to_layout_key(
+                *behavior_id,
+                *param1,
+                *param2,
+                behavior_names,
+                behavior_metadata,
+            ),
         _ => behavior_to_layout_key(behavior),
     }
 }
@@ -185,6 +197,7 @@ fn unknown_behavior_to_layout_key(
     param1: u32,
     param2: u32,
     behavior_names: &HashMap<i32, String>,
+    behavior_metadata: &HashMap<i32, Vec<BehaviorBindingParametersSet>>,
 ) -> Option<LayoutKey> {
     let name = behavior_names.get(&behavior_id);
     let is_tap_dance = name
@@ -196,25 +209,59 @@ fn unknown_behavior_to_layout_key(
         })
         .unwrap_or(false);
 
-    let selected_param = if is_tap_dance {
-        param1
+    let (selected_param, selected_param_index) = if is_tap_dance {
+        (param1, 1)
+    } else if param2 != 0 {
+        (param2, 2)
     } else {
-        param2
+        (param1, 1)
     };
 
     if selected_param != 0 {
+        if let Some(metadata_sets) = behavior_metadata.get(&behavior_id) {
+            if param_is_layer(metadata_sets, selected_param_index) {
+                return Some(LayoutKey {
+                    tap: Label::new(format!("L{}", selected_param)),
+                    kind: KeycodeKind::Special,
+                    layer_ref: Some(selected_param as u8),
+                    ..Default::default()
+                });
+            }
+
+            if param_is_hid(metadata_sets, selected_param_index) {
+                let mut key = hid_usage_to_layout_key(HidUsage::from_encoded(selected_param));
+                key.kind = KeycodeKind::Special;
+                return Some(key);
+            }
+        }
+
+        // metadata가 없으면 기존처럼 HID로 시도
         let mut key = hid_usage_to_layout_key(HidUsage::from_encoded(selected_param));
         key.kind = KeycodeKind::Special;
         return Some(key);
     }
 
+    let custom_labels: HashMap<&str, &str> = HashMap::from([
+        ("TD_RR", "R"),
+        ("TD_EE", "E"),
+        ("TD_OO", "O"),
+        ("TD_PP", "P"),
+        ("TD_QQ", "Q"),
+        ("TD_TT", "T"),
+        ("TD_WW", "W"),
+        ("TD_LSET", "("),
+        ("TD_RSET", ")"),
+    ]);
+
     if let Some(name) = name {
+    if let Some(label) = custom_labels.get(name.as_str()) {
         return Some(LayoutKey {
-            tap: Label::new(name.clone()),
+            tap: Label::new((*label).to_string()),
             kind: KeycodeKind::Special,
             ..Default::default()
         });
     }
+}
 
     behavior_to_layout_key(&Behavior::Unknown {
         behavior_id,
@@ -233,4 +280,44 @@ fn layer_layout_key(abbreviation: &str, layer_id: u32) -> LayoutKey {
         layer_ref: Some(layer_id as u8),
         ..Default::default()
     }
+}
+
+fn param_is_layer(
+    metadata_sets: &[BehaviorBindingParametersSet],
+    param_index: u8,
+) -> bool {
+    metadata_sets.first().is_some_and(|first_set| {
+        let params = if param_index == 1 {
+            &first_set.param1
+        } else {
+            &first_set.param2
+        };
+
+        params.iter().any(|p| {
+            matches!(
+                p.value_type,
+                Some(BehaviorParameterValueType::LayerId(_))
+            )
+        })
+    })
+}
+
+fn param_is_hid(
+    metadata_sets: &[BehaviorBindingParametersSet],
+    param_index: u8,
+) -> bool {
+    metadata_sets.first().is_some_and(|first_set| {
+        let params = if param_index == 1 {
+            &first_set.param1
+        } else {
+            &first_set.param2
+        };
+
+        params.iter().any(|p| {
+            matches!(
+                p.value_type,
+                Some(BehaviorParameterValueType::HidUsage(_))
+            )
+        })
+    })
 }

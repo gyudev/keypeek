@@ -124,48 +124,51 @@ fn fetch_zmk_data_from_client<T: Read + Write>(
     mut client: StudioClient<T>,
 ) -> Result<ZmkData, Box<dyn Error>> {
     let mut behavior_names = HashMap::new();
-    let mut debug = String::new();
+    let mut behavior_metadata = HashMap::new();
 
-    // if let Ok(behavior_ids) = client.list_all_behaviors() {
-    //     for behavior_id in behavior_ids {
-    //         if let Ok(details) = client.get_behavior_details(behavior_id) {
-    //             behavior_names.insert(behavior_id as i32, details.display_name);
-    //         }
-    //     }
-    // }
-
-    match client.list_all_behaviors() {
-        Ok(behavior_ids) => {
-            debug.push_str(&format!("behavior_ids: {:?}\n\n", behavior_ids));
-
-            for behavior_id in behavior_ids {
-                match client.get_behavior_details(behavior_id) {
-                    Ok(details) => {
-                        debug.push_str(&format!(
-                            "OK id={} display_name={} metadata={:?}\n",
-                            behavior_id,
-                            details.display_name,
-                            details.metadata
-                        ));
-
-                        behavior_names.insert(behavior_id as i32, details.display_name);
-                    }
-                    Err(e) => {
-                        debug.push_str(&format!(
-                            "ERR id={} error={:?}\n",
-                            behavior_id,
-                            e
-                        ));
-                    }
-                }
+    if let Ok(behavior_ids) = client.list_all_behaviors() {
+        for behavior_id in behavior_ids {
+            if let Ok(details) = client.get_behavior_details(behavior_id) {
+                behavior_names.insert(behavior_id as i32, details.display_name);
+                behavior_metadata.insert(behavior_id as i32, details.metadata);
             }
-        }
-        Err(e) => {
-            debug.push_str(&format!("list_all_behaviors ERR: {:?}\n", e));
         }
     }
 
-    std::fs::write("behavior_dump.txt", debug).ok();
+    // 디버깅용 전체 행동 목록과 세부 정보 가져오기(파일 덤프)
+    // let mut debug = String::new();
+    // match client.list_all_behaviors() {
+    //     Ok(behavior_ids) => {
+    //         debug.push_str(&format!("behavior_ids: {:?}\n\n", behavior_ids));
+
+    //         for behavior_id in behavior_ids {
+    //             match client.get_behavior_details(behavior_id) {
+    //                 Ok(details) => {
+    //                     debug.push_str(&format!(
+    //                         "OK id={} display_name={} metadata={:?}\n",
+    //                         behavior_id,
+    //                         details.display_name,
+    //                         details.metadata
+    //                     ));
+
+    //                     behavior_names.insert(behavior_id as i32, details.display_name);
+    //                 }
+    //                 Err(e) => {
+    //                     debug.push_str(&format!(
+    //                         "ERR id={} error={:?}\n",
+    //                         behavior_id,
+    //                         e
+    //                     ));
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     Err(e) => {
+    //         debug.push_str(&format!("list_all_behaviors ERR: {:?}\n", e));
+    //     }
+    // }
+
+    // std::fs::write("behavior_dump.txt", debug).ok();
 
     let lock_state = client.get_lock_state()?;
     if lock_state == core::LockState::ZmkStudioCoreLockStateLocked {
@@ -187,7 +190,11 @@ fn fetch_zmk_data_from_client<T: Read + Write>(
         .map(|layer| {
             layer
                 .iter()
-                .map(|behavior| behavior_to_layout_key_with_metadata(behavior, &behavior_names))
+                .map(|behavior| behavior_to_layout_key_with_metadata(
+                    behavior,
+                    &behavior_names,
+                    &behavior_metadata,
+                ))
                 .collect()
         })
         .collect();
